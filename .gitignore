@@ -1,0 +1,5 @@
+CLAUDE.md
+.claude/
+/target
+*.cbor
+*.pem

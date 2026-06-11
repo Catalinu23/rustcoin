@@ -1,0 +1,6 @@
+{
+  "node": "127.0.0.1:8888",
+  "keys": [{ "private_key_path": "alice.priv.cbor", "public_key_path": "alice.pub.pem" }],
+  "contacts": [{ "name": "bob", "public_key_path": "bob.pub.pem" }],
+  "fee": { "fee_type": "Fixed", "value": 1000 }
+}
