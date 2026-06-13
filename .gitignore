@@ -3,3 +3,4 @@ CLAUDE.md
 /target
 *.cbor
 *.pem
+testdata/

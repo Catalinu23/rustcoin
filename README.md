@@ -153,8 +153,8 @@ cargo build
 ### 2. Generate keys
 
 ```bash
-./target/debug/key_gen alice   # → alice.pub.pem, alice.priv.cbor
-./target/debug/key_gen bob     # → bob.pub.pem,   bob.priv.cbor
+./target/debug/key_gen testdata/alice   # → testdata/alice.pub.pem, testdata/alice.priv.cbor
+./target/debug/key_gen testdata/bob     # → testdata/bob.pub.pem,   testdata/bob.priv.cbor
 ```
 
 ### 3. Start the node (Terminal 1)
@@ -168,23 +168,23 @@ The node starts with an empty chain and waits for connections.
 ### 4. Start the miner (Terminal 2)
 
 ```bash
-./target/debug/miner --address 127.0.0.1:9000 --public-key-file alice.pub.pem
+./target/debug/miner --address 127.0.0.1:9000 --public-key-file testdata/alice.pub.pem
 ```
 
 The miner fetches a block template and searches for a valid proof-of-work. Each mined block pays **5,000,000,000 base units** to Alice's public key. Let it run for a few blocks.
 
 ### 5. Set up Alice's wallet (Terminal 3)
 
-Create `alice_wallet.json`:
+Create `testdata/alice_wallet.json`:
 
 ```json
 {
   "node": "127.0.0.1:9000",
   "keys": [
-    { "private_key_path": "alice.priv.cbor", "public_key_path": "alice.pub.pem" }
+    { "private_key_path": "testdata/alice.priv.cbor", "public_key_path": "testdata/alice.pub.pem" }
   ],
   "contacts": [
-    { "name": "bob", "public_key_path": "bob.pub.pem" }
+    { "name": "bob", "public_key_path": "testdata/bob.pub.pem" }
   ],
   "fee": { "fee_type": "Fixed", "value": 1000 }
 }
@@ -193,7 +193,7 @@ Create `alice_wallet.json`:
 Then start the wallet:
 
 ```bash
-./target/debug/wallet --config alice_wallet.json
+./target/debug/wallet --config testdata/alice_wallet.json
 ```
 
 ### 6. Check balance and send
