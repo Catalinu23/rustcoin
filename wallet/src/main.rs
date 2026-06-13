@@ -135,7 +135,7 @@ async fn run_cli(core: Arc<Core>) -> Result<()> {
 /// the user replaces the key/contact paths with real ones before running the wallet.
 fn generate_dummy_config(path: &PathBuf) -> Result<()> {
     let config = Config {
-        node: "127.0.0.1:9000".to_string(),
+        node: "127.0.0.1:8765".to_string(),
         keys: vec![Key {
             private_key_path: PathBuf::from("private_key.bin"),
             public_key_path: PathBuf::from("public_key.bin"),

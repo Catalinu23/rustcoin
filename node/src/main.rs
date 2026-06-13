@@ -20,7 +20,7 @@ pub static NODES: DashMap<String, TcpStream> = DashMap::new();
 #[derive(FromArgs)]
 struct Args {
     /// port to listen on
-    #[argh(option, default = "9000")]
+    #[argh(option, default = "8765")]
     port: u16,
 
     /// path to the blockchain file

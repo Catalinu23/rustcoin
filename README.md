@@ -78,7 +78,7 @@ Starts a full node. If `--blockchain-file` exists it is loaded; otherwise the no
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--port` | `9000` | TCP port to listen on |
+| `--port` | `8765` | TCP port to listen on |
 | `--blockchain-file` | `./blockchain.cbor` | Path to persist the blockchain |
 | positional | — | Addresses of known peers to connect to on startup |
 
@@ -108,7 +108,7 @@ Writes a skeleton config to `<path>` as a starting point.
 
 ```json
 {
-  "node": "127.0.0.1:9000",
+  "node": "127.0.0.1:8765",
   "keys": [
     {
       "private_key_path": "alice.priv.cbor",
@@ -160,7 +160,7 @@ cargo build
 ### 3. Start the node (Terminal 1)
 
 ```bash
-./target/debug/node --port 9000
+./target/debug/node --port 8765
 ```
 
 The node starts with an empty chain and waits for connections.
@@ -168,7 +168,7 @@ The node starts with an empty chain and waits for connections.
 ### 4. Start the miner (Terminal 2)
 
 ```bash
-./target/debug/miner --address 127.0.0.1:9000 --public-key-file testdata/alice.pub.pem
+./target/debug/miner --address 127.0.0.1:8765 --public-key-file testdata/alice.pub.pem
 ```
 
 The miner fetches a block template and searches for a valid proof-of-work. Each mined block pays **5,000,000,000 base units** to Alice's public key. Let it run for a few blocks.
@@ -179,7 +179,7 @@ Create `testdata/alice_wallet.json`:
 
 ```json
 {
-  "node": "127.0.0.1:9000",
+  "node": "127.0.0.1:8765",
   "keys": [
     { "private_key_path": "testdata/alice.priv.cbor", "public_key_path": "testdata/alice.pub.pem" }
   ],
