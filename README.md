@@ -13,7 +13,7 @@ The project is a Cargo workspace with four crates:
 | `lib` | Shared types, crypto, hashing, CBOR serialization, network protocol, and utility binaries |
 | `node` | Full node — maintains the blockchain and UTXO set, accepts connections from miners and wallets |
 | `miner` | Mining client — fetches block templates from a node, searches for a valid proof-of-work, and submits mined blocks |
-| `wallet` | Interactive CLI wallet — manages keys and contacts, checks balances, and sends transactions |
+| `wallet` | Interactive TUI wallet — manages keys and contacts, checks balances, and sends transactions |
 
 ## Consensus parameters
 
@@ -96,7 +96,7 @@ Connects to a node, fetches a block template every 5 seconds, runs proof-of-work
 wallet [--config <path>] [--node <host:port>]
 ```
 
-Starts the interactive wallet. Reads a JSON config file (default: `wallet_config.toml`).
+Starts the interactive TUI wallet. Reads a JSON config file (default: `wallet_config.toml`).
 
 ```
 wallet generate-config --output <path>
@@ -128,17 +128,26 @@ Writes a skeleton config to `<path>` as a starting point.
 }
 ```
 
-`fee_type` can be `"Fixed"` (flat amount in base units) or `"Percentage"` (percentage of the payment amount).
+`fee_type` can be `"Fixed"` (flat amount in coins) or `"Percentage"` (percentage of the payment amount).
 
-**Interactive commands:**
+**TUI layout:**
 
-| Command | Description |
-|---------|-------------|
-| `balance` | Show unspent balance |
-| `send <contact> <amount>` | Send base units to a named contact |
-| `contacts` | List configured contacts |
-| `help` | Show available commands |
-| `exit` / `quit` | Quit |
+The wallet opens a full-screen terminal interface with two panels and a status bar:
+
+- **Left panel** — current balance in coins and the connected node address
+- **Right panel** — scrollable list of UTXOs, each tagged `[unspent]` or `[pending]`
+- **Status bar** — key hints and the result of the last operation
+
+The UTXO list refreshes automatically every 10 seconds.
+
+**Key bindings:**
+
+| Key | Action |
+|-----|--------|
+| `s` | Open the Send dialog — select a contact and enter an amount in coins |
+| `c` | Show the contacts list |
+| `r` | Manually refresh the UTXO list |
+| `q` | Quit |
 
 ## Usage example
 
@@ -198,21 +207,18 @@ Then start the wallet:
 
 ### 6. Check balance and send
 
-```
-> balance
-5000000000
-> send bob 100000000
-Transaction queued
-```
+The wallet opens in a full-screen TUI. The left panel shows Alice's balance and the right panel lists her UTXOs.
 
-After a few seconds the miner picks up the transaction, mines a new block, and the balance updates:
+To send coins to Bob:
 
-```
-> balance
-4899999000
-```
+1. Press `s` to open the Send dialog
+2. Select `bob` from the contact list
+3. Enter the amount in coins (e.g. `5000000000`)
+4. Press **Send**
 
-The difference is the amount sent (100,000,000) plus the fee (1,000).
+The status bar confirms the transaction was queued. After a few seconds the miner picks it up, mines a new block, and the UTXO list refreshes automatically — the balance drops by the sent amount plus the fee (1,000 coins).
+
+Press `q` to quit.
 
 ## Serialization
 
