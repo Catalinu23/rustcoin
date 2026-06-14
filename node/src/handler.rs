@@ -107,7 +107,7 @@ async fn fetch_utxos(socket: &mut TcpStream, key: PublicKey) -> bool {
 
     let message = Message::UTXOs(utxos);
     message.send_async(socket).await.unwrap();
-    true
+    false
 }
 
 // Adds a block forwarded by another node to the local chain, logging if it is rejected.
@@ -178,7 +178,7 @@ async fn submit_transaction(tx: Transaction) -> bool {
     println!("added transaction to mempool");
     drop(blockchain);
     broadcast_to_peers(Message::NewTransaction(tx)).await;
-    true
+    false
 }
 
 // Builds a block template from the current mempool, inserts a coinbase output for the
