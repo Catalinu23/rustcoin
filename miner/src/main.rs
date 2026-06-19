@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use num_cpus;
 use clap::Parser;
 use lib::crypto::PublicKey;
 use lib::network::Message;
@@ -49,7 +50,7 @@ impl Miner {
     // Main event loop: spawns the mining thread then waits on two events:
     // a 5-second tick to fetch/validate the template, or a mined block ready to submit.
     async fn run(&self) -> Result<()> {
-        self.spawn_mining_thread();
+        let _handles = self.spawn_mining_thread();
         let mut template_interval = interval(Duration::from_secs(5));
         loop {
             let receiver_clone = self.mined_block_receiver.clone();
@@ -64,33 +65,45 @@ impl Miner {
         }
     }
 
-    // Spawns a dedicated OS thread that spins waiting for the `mining` flag to be set,
-    // then sends the current template block to the async runtime via the channel.
-    fn spawn_mining_thread(&self) -> thread::JoinHandle<()> {
-        let template = self.current_template.clone();
-        let mining = self.mining.clone();
-        let sender = self.mined_block_sender.clone();
-        thread::spawn(move || {
-            loop {
-                if mining.load(Ordering::Relaxed) {
-                    let block_opt = template.lock().unwrap().clone();
-                    if let Some(mut block) = block_opt {
-                        println!("Mining block with target {}", block.header.target);
-                        loop {
-                            if !mining.load(Ordering::Relaxed) {
-                                break;
-                            }
-                            if block.header.mine(10_000) {
-                                sender.send(block).expect("Failed to send mined block");
-                                mining.store(false, Ordering::Relaxed);
-                                break;
+    // Spawns one OS thread per CPU core, each searching a distinct nonce range.
+    // The first thread to find a valid hash sends the block and clears the mining flag.
+    fn spawn_mining_thread(&self) -> Vec<thread::JoinHandle<()>> {
+        let n = num_cpus::get() as u64;
+        println!("Starting {} mining threads", n);
+        (0..n)
+            .map(|i| {
+                let template = self.current_template.clone();
+                let mining = self.mining.clone();
+                let sender = self.mined_block_sender.clone();
+                thread::spawn(move || {
+                    let range_size = u64::MAX / n;
+                    let start = i * range_size;
+                    let end = if i + 1 == n { u64::MAX } else { (i + 1) * range_size };
+                    loop {
+                        if mining.load(Ordering::Relaxed) {
+                            let block_opt = template.lock().unwrap().clone();
+                            if let Some(mut block) = block_opt {
+                                if i == 0 {
+                                    println!("Mining block with target {}", block.header.target);
+                                }
+                                block.header.nonce = start;
+                                loop {
+                                    if !mining.load(Ordering::Relaxed) {
+                                        break;
+                                    }
+                                    if block.header.mine_range(10_000, start, end) {
+                                        let _ = sender.send(block);
+                                        mining.store(false, Ordering::Relaxed);
+                                        break;
+                                    }
+                                }
                             }
                         }
+                        thread::yield_now();
                     }
-                }
-                thread::yield_now();
-            }
-        })
+                })
+            })
+            .collect()
     }
 
     // Decides every 5 seconds whether to fetch a new template (idle) or validate

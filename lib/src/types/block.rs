@@ -256,6 +256,20 @@ impl BlockHeader {
         false
     }
 
+    pub fn mine_range(&mut self, steps: usize, start: u64, end: u64) -> bool {
+        for _ in 0..steps {
+            if self.hash().matches(self.target) {
+                return true;
+            }
+            self.nonce = if self.nonce + 1 < end {
+                self.nonce + 1
+            } else {
+                start
+            };
+        }
+        false
+    }
+
     /// Returns the SHA-256 hash of this block header.
     pub fn hash(&self) -> Hash {
         Hash::hash(self)
