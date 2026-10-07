@@ -22,18 +22,23 @@ pub struct Blockchain {
     mempool: Vec<(DateTime<Utc>, Transaction)>,
 }
 
-fn transaction_fee(tx: &Transaction, utxos: &HashMap<Hash, (bool, TransactionOutput)>) -> u64 {
-    let inputs: u64 = tx
-        .inputs
+/// Sums the values of the UTXOs spent by `tx`, or `None` if any input is not in `utxos`.
+fn input_value(
+    tx: &Transaction,
+    utxos: &HashMap<Hash, (bool, TransactionOutput)>,
+) -> Option<u64> {
+    tx.inputs
         .iter()
         .map(|i| {
             utxos
                 .get(&i.prev_transaction_output_hash)
-                .expect("BUG: impossible")
-                .1
-                .value
+                .map(|(_, output)| output.value)
         })
-        .sum();
+        .sum()
+}
+
+fn transaction_fee(tx: &Transaction, utxos: &HashMap<Hash, (bool, TransactionOutput)>) -> u64 {
+    let inputs = input_value(tx, utxos).expect("BUG: impossible");
     let outputs: u64 = tx.outputs.iter().map(|o| o.value).sum();
     inputs.saturating_sub(outputs)
 }
@@ -126,73 +131,70 @@ impl Blockchain {
         Ok(())
     }
 
+    /// Validates `tx` and adds it to the mempool, marking the UTXOs it spends as pending.
+    /// The chain state is left untouched if validation fails.
     pub fn add_to_mempool(&mut self, tx: Transaction) -> Result<()> {
-        let mut known_inputs = HashSet::new();
-        for input in &tx.inputs {
-            if !self.utxos.contains_key(&input.prev_transaction_output_hash) {
-                return Err(BlockChainError::InvalidTransaction);
-            }
-            if known_inputs.contains(&input.prev_transaction_output_hash) {
-                return Err(BlockChainError::InvalidTransaction);
-            }
-            known_inputs.insert(input.prev_transaction_output_hash);
-        }
-
-        for input in &tx.inputs {
-            if let Some((true, _)) = self.utxos.get(&input.prev_transaction_output_hash) {
-                let referencing_transaction =
-                    self.mempool
-                        .iter()
-                        .enumerate()
-                        .find(|(_, (_, transaction))| {
-                            transaction
-                                .outputs
-                                .iter()
-                                .any(|output| output.hash() == input.prev_transaction_output_hash)
-                        });
-                if let Some((_idx, (_, referencing_transaction))) = referencing_transaction {
-                    for input in &referencing_transaction.inputs {
-                        self.utxos
-                            .entry(input.prev_transaction_output_hash)
-                            .and_modify(|(marked, _)| {
-                                *marked = false;
-                            });
-                    }
-                }
-            }
-        }
-
-        let all_inputs = tx
-            .inputs
-            .iter()
-            .map(|i| {
-                self.utxos
-                    .get(&i.prev_transaction_output_hash)
-                    .expect("BUG: impossible")
-                    .1
-                    .value
-            })
-            .sum::<u64>();
-        let all_outputs = tx.outputs.iter().map(|o| o.value).sum::<u64>();
-
-        if all_inputs < all_outputs {
-            return Err(BlockChainError::InvalidTransaction);
-        }
-
-        for input in &tx.inputs {
-            self.utxos
-                .entry(input.prev_transaction_output_hash)
-                .and_modify(|(marked, _)| {
-                    *marked = true;
-                });
-        }
+        self.validate_mempool_transaction(&tx)?;
+        self.release_superseded_inputs(&tx);
+        self.set_inputs_pending(&tx, true);
 
         self.mempool.push((Utc::now(), tx));
         let utxos = &self.utxos;
-        self.mempool.sort_by_key(|(_, tx)| {
-            std::cmp::Reverse(transaction_fee(tx, utxos))
-        });
+        self.mempool
+            .sort_by_key(|(_, tx)| std::cmp::Reverse(transaction_fee(tx, utxos)));
         Ok(())
+    }
+
+    /// Checks that every input of `tx` exists in the UTXO set, that no input is listed
+    /// twice, and that the inputs cover the outputs. Does not modify any state.
+    fn validate_mempool_transaction(&self, tx: &Transaction) -> Result<()> {
+        let mut seen = HashSet::new();
+        for input in &tx.inputs {
+            if !seen.insert(input.prev_transaction_output_hash) {
+                return Err(BlockChainError::InvalidTransaction);
+            }
+        }
+
+        let input_value =
+            input_value(tx, &self.utxos).ok_or(BlockChainError::InvalidTransaction)?;
+        let output_value: u64 = tx.outputs.iter().map(|o| o.value).sum();
+        if input_value < output_value {
+            return Err(BlockChainError::InvalidTransaction);
+        }
+        Ok(())
+    }
+
+    /// For each input of `tx` that is already pending, finds the mempool transaction that
+    /// references that output and clears the pending flag on that transaction's inputs.
+    fn release_superseded_inputs(&mut self, tx: &Transaction) {
+        for input in &tx.inputs {
+            let hash = input.prev_transaction_output_hash;
+            if !matches!(self.utxos.get(&hash), Some((true, _))) {
+                continue;
+            }
+            let Some((_, referencing)) = self
+                .mempool
+                .iter()
+                .find(|(_, t)| t.outputs.iter().any(|o| o.hash() == hash))
+            else {
+                continue;
+            };
+            for spent in &referencing.inputs {
+                if let Some((pending, _)) = self.utxos.get_mut(&spent.prev_transaction_output_hash)
+                {
+                    *pending = false;
+                }
+            }
+        }
+    }
+
+    /// Sets the pending flag on every UTXO spent by `tx`.
+    fn set_inputs_pending(&mut self, tx: &Transaction, pending: bool) {
+        for input in &tx.inputs {
+            if let Some((flag, _)) = self.utxos.get_mut(&input.prev_transaction_output_hash) {
+                *flag = pending;
+            }
+        }
     }
 
     pub fn try_adjust_target(&mut self) {
